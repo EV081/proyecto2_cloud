@@ -25,6 +25,30 @@ functions:
       - httpApi:
           method: POST
           path: /productos/crear
+  ActualizarProducto: 
+    handler: src.producto.productos_actualizar.lambda_handler
+    events:
+      - httpApi:
+          method: PUT
+          path: /productos/actualizar 
+  EliminarProducto:
+    handler: src.producto.productos_eliminar.lambda_handler
+    events:
+      - httpApi:
+          method: DELETE
+          path: /productos/eliminar
+  ObtenerProductoPorID:
+    handler: src.producto.producto_id.lambda_handler
+    events:
+      - httpApi:
+          method: ṔOST 
+          path: /productos/buscar
+  ListarProductos:
+    handler: src.producto.productos_listar.lambda_handler
+    events:
+      - httpApi:
+          method: POST
+          path: /productos/listar
   UploadImagenProducto:
     handler: src.producto.upload_imagen.lambda_handler
     events:
