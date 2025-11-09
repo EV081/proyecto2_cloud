@@ -32,22 +32,14 @@ def lambda_handler(event, context):
         "directory": "carpeta/sub/",
         "filename": "archivo.pdf",
         "file_base64": "<BASE64>",
-        "content_type": "application/pdf",
-        "token": "<token>"
+        "content_type": "application/pdf"
       }
     """
     try:
-        # Obtener el token de autorización
-        body = event.get('body', {}) or {}
-        if isinstance(body, str):
-            try:
-                body = json.loads(body)
-            except Exception:
-                return {"statusCode": 400, "error": "El body no es JSON válido."}
-        
-        token = (body.get("token") or "").strip()
+        # Obtener el token de los headers (Authorization)
+        token = (event['headers'].get('Authorization') or "").strip()
         if not token:
-            return {"statusCode": 400, "error": "Falta el token."}
+            return {"statusCode": 400, "error": "Falta el token en los headers (Authorization)."}
 
         # Validar token
         auth = validate_token(token)
@@ -59,6 +51,7 @@ def lambda_handler(event, context):
             return {"statusCode": 400, "error": "Token no contiene tenant_id."}
 
         # Obtener parámetros del cuerpo de la solicitud
+        body = json.loads(event.get('body', '{}'))
         bucket = body.get('bucket')
         key = body.get('key')
         directory = body.get('directory')
@@ -111,4 +104,3 @@ def lambda_handler(event, context):
 
     except Exception as e:
         return {"statusCode": 500, "error": f"Error interno: {str(e)}"}
-
