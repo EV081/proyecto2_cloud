@@ -1,7 +1,6 @@
-service: pedidos-seguridad
+org: 200millas
+service: 200_millas
 frameworkVersion: "4"
-
-org: darosv
 
 provider:
   name: aws
@@ -11,7 +10,7 @@ provider:
   memorySize: 256
   timeout: 30
   iam:
-    role: arn:aws:iam::645337731455:role/LabRole
+    role: arn:aws:iam::468251834706:role/LabRole
   environment:
     USERS_TABLE: t_usuarios
     TOKENS_TABLE: t_tokens_acceso
