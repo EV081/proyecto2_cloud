@@ -1,4 +1,4 @@
-import boto3
+import os, boto3
 import json
 
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]

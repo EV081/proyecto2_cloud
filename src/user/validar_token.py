@@ -1,4 +1,4 @@
-import boto3
+import os, boto3
 from datetime import datetime
 
 TOKENS_TABLE = os.environ["TOKENS_TABLE"]
