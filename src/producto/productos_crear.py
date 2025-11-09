@@ -9,7 +9,7 @@ def lambda_handler(event, context):
     producto = event['body']
     
     # Inicio - Proteger el Lambda
-    token = event['headers']['Authorization']
+    token = headers.get('authorization') or headers.get('Authorization')
     lambda_client = boto3.client('lambda')    
     payload_string = '{ "token": "' + token +  '" }'
     invoke_response = lambda_client.invoke(FunctionName="ValidarTokenAcceso",
