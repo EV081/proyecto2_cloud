@@ -1,6 +1,7 @@
 import json
 import base64
 import boto3
+import os
 from botocore.exceptions import ClientError
 
 def lambda_handler(event, context):
@@ -16,22 +17,29 @@ def lambda_handler(event, context):
       }
     """
     # Validar token de autorización
-    token = event['headers'].get('Authorization')
+    token = event.get('headers', {}).get('Authorization')
     if not token:
         return {'statusCode': 401, 'error': 'Falta header Authorization.'}
 
-    lambda_client = boto3.client('lambda')    
-    payload_string = '{ "token": "' + token +  '" }'
+    lambda_client = boto3.client('lambda')
+    # Use configured function name if provided via env, otherwise fallback to literal
+    validar_fn = os.environ.get('VALIDAR_TOKEN_FN', 'ValidarTokenAcceso')
+    payload_string = json.dumps({"token": token})
     try:
-        invoke_response = lambda_client.invoke(FunctionName="ValidarTokenAcceso", InvocationType='RequestResponse', Payload=payload_string)
+        invoke_response = lambda_client.invoke(FunctionName=validar_fn, InvocationType='RequestResponse', Payload=payload_string)
         response = json.loads(invoke_response['Payload'].read())
-        if response['statusCode'] == 403:
+        if response.get('statusCode') == 403:
             return {'statusCode': 403, 'status': 'Forbidden - Acceso No Autorizado'}
     except ClientError as e:
         return {'statusCode': 500, 'error': f'Error al invocar la función Lambda de validación: {str(e)}'}
 
     # Obtener parámetros del cuerpo
     body = event.get('body', {}) or {}
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except Exception:
+            return {"statusCode": 400, "error": "El body no es JSON válido."}
     bucket = body.get('bucket')
     key = body.get('key')
     directory = body.get('directory')
