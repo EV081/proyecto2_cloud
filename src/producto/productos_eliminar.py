@@ -2,34 +2,59 @@ import os, json, boto3
 from src.common.auth import get_token_from_headers, validate_token_and_get_claims
 
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
+PRODUCTS_BUCKET = os.environ.get("PRODUCTS_BUCKET")  # Asegúrate de tener el bucket configurado
 
 def _resp(code, body):
     return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False)}
 
 def lambda_handler(event, context):
-    # Token
     token = get_token_from_headers(event)
     auth = validate_token_and_get_claims(token)
     if auth.get("statusCode") == 403:
-        return _resp(403, {"error":"Acceso no autorizado"})
+        return _resp(403, {"error": "Acceso no autorizado"})
 
-    # Body (DELETE también trae body)
     data = json.loads(event.get("body") or "{}")
     tenant_id = data.get("tenant_id")
     product_id = data.get("product_id")
     if not tenant_id:
-        return _resp(400, {"error":"Falta tenant_id en el body"})
+        return _resp(400, {"error": "Falta tenant_id en el body"})
     if not product_id:
-        return _resp(400, {"error":"Falta product_id en el body"})
+        return _resp(400, {"error": "Falta product_id en el body"})
 
     ddb = boto3.resource("dynamodb")
+    s3 = boto3.client("s3")  # Inicializar el cliente de S3
     table = ddb.Table(PRODUCTS_TABLE)
+
     try:
+        # Obtener los detalles del producto antes de eliminarlo para obtener la URL o key de la imagen
+        res = table.get_item(
+            Key={"tenant_id": tenant_id, "product_id": product_id}
+        )
+        
+        if "Item" not in res:
+            return _resp(404, {"error": "Producto no encontrado"})
+
+        # Si el producto tiene una imagen asociada, eliminamos el archivo de S3
+        product = res["Item"]
+        image_key = product.get("image_url")
+
+        if image_key:
+            try:
+                # Eliminar el archivo de S3
+                s3.delete_object(Bucket=PRODUCTS_BUCKET, Key=image_key)
+                print(f"Imagen {image_key} eliminada de S3.")
+            except Exception as e:
+                # Si hay un error al eliminar el archivo en S3, puedes manejarlo aquí
+                print(f"Error al eliminar la imagen de S3: {str(e)}")
+                return _resp(500, {"error": f"Error al eliminar la imagen de S3: {str(e)}"})
+
+        # Ahora eliminar el producto de DynamoDB
         res = table.delete_item(
             Key={"tenant_id": tenant_id, "product_id": product_id},
             ConditionExpression="attribute_exists(tenant_id) AND attribute_exists(product_id)",
             ReturnValues="ALL_OLD"
         )
     except ddb.meta.client.exceptions.ConditionalCheckFailedException:
-        return _resp(404, {"error":"Producto no encontrado"})
+        return _resp(404, {"error": "Producto no encontrado"})
+
     return _resp(200, {"ok": True, "deleted": res.get("Attributes")})
