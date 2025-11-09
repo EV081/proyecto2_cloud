@@ -41,7 +41,7 @@ functions:
     handler: src.producto.producto_id.lambda_handler
     events:
       - httpApi:
-          method: ṔOST 
+          method: POST 
           path: /productos/buscar
   ListarProductos:
     handler: src.producto.productos_listar.lambda_handler
