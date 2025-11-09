@@ -1,40 +1,33 @@
-import os, boto3, json
+import os, json, boto3
+from common.auth import get_token_from_headers, validate_token_and_get_claims
 
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
-VALIDAR_TOKEN_FN = os.environ.get("VALIDAR_TOKEN_FN", "millas-200-dev-ValidarTokenAcceso")
+
+def _resp(code, body): return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False)}
 
 def lambda_handler(event, context):
-    headers = event.get("headers") or {}
-    token = (headers.get("authorization") or headers.get("Authorization") or "").strip()
-    if token.lower().startswith("bearer "):
-        token = token[7:].strip()
+    token = get_token_from_headers(event)
+    auth = validate_token_and_get_claims(token)
+    if auth.get("statusCode") == 403:
+        return _resp(403, {"error":"Acceso no autorizado"})
+    tenant_id = auth.get("tenant_id")
+    if not tenant_id:
+        return _resp(400, {"error":"Token sin tenant_id"})
 
-    # Body: string -> dict
-    body_str = event.get("body") or "{}"
+    body = json.loads(event.get("body") or "{}")
+    body["tenant_id"] = tenant_id
+
+    for req in ("product_id", "nombre"):
+        if req not in body:
+            return _resp(422, {"error": f"Falta {req}"})
+
+    ddb = boto3.resource("dynamodb")
+    table = ddb.Table(PRODUCTS_TABLE)
     try:
-        producto = json.loads(body_str)
-    except json.JSONDecodeError:
-        return {"statusCode": 400, "status": "Body inválido: no es JSON"}
-
-    print({"token": token, "fn": VALIDAR_TOKEN_FN, "producto_keys": list(producto.keys())})
-
-    # Validar token
-    lambda_client = boto3.client("lambda")
-    payload_string = json.dumps({"token": token})
-    resp = lambda_client.invoke(
-        FunctionName=VALIDAR_TOKEN_FN,
-        InvocationType="RequestResponse",
-        Payload=payload_string
-    )
-    validar = json.loads(resp["Payload"].read() or "{}")
-    print({"validar": validar})
-
-    if validar.get("statusCode") == 403:
-        return {"statusCode": 403, "status": "Forbidden - Acceso No Autorizado"}
-
-    # Guardar en DynamoDB
-    dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table(PRODUCTS_TABLE)
-    put_res = table.put_item(Item=producto)
-
-    return {"statusCode": 200, "response": put_res}
+        table.put_item(
+            Item=body,
+            ConditionExpression="attribute_not_exists(tenant_id) AND attribute_not_exists(product_id)"
+        )
+    except ddb.meta.client.exceptions.ConditionalCheckFailedException:
+        return _resp(409, {"error":"El producto ya existe"})
+    return _resp(201, {"ok": True, "item": body})
