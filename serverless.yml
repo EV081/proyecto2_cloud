@@ -46,7 +46,7 @@ functions:
           path: /usuarios/login
 
   ValidarTokenAcceso:
-    handler: src.seguridad.validar_token.lambda_handler
+    handler: src.user.validar_token.lambda_handler
 
 resources:
   Resources:
