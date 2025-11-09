@@ -15,11 +15,11 @@ def lambda_handler(event, context):
             return _resp(403, {"error":"Acceso no autorizado"})
 
         body = json.loads(event.get("body") or "{}")
-
         bucket = body.get("bucket") or PRODUCTS_BUCKET
         key = body.get("key")
         directory = body.get("directory")
         filename = body.get("filename")
+        tenant_id = body.get("tenant_id")  # opcional; si lo envías, prefijamos
         file_b64 = body.get("file_base64")
         content_type = body.get("content_type")
 
@@ -32,11 +32,11 @@ def lambda_handler(event, context):
                 directory += "/"
             key = f"{directory}{filename}"
 
+        if tenant_id and not key.startswith(f"{tenant_id}/"):
+            key = f"{tenant_id}/{key}"
+
         if not file_b64:
             return _resp(400, {"error":"'file_base64' es requerido"})
-
-        if not key.startswith(f"{tenant_id}/"):
-            key = f"{tenant_id}/{key}"
 
         try:
             file_bytes = base64.b64decode(file_b64)
@@ -52,8 +52,9 @@ def lambda_handler(event, context):
         etag = (resp.get("ETag") or "").strip('"')
 
         return _resp(200, {
-            "bucket": bucket, "key": key, "size_bytes": len(file_bytes),
-            "etag": etag, "message": "Archivo subido correctamente."
+            "bucket": bucket, "key": key,
+            "size_bytes": len(file_bytes), "etag": etag,
+            "message": "Archivo subido correctamente."
         })
 
     except ClientError as e:
