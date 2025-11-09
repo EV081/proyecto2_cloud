@@ -1,33 +1,49 @@
-import os, json, boto3
-from datetime import datetime
-from ..seguridad.common import hash_password, response
+import boto3
+import hashlib
 
-USERS_TABLE = os.environ["USERS_TABLE"]
-dynamodb = boto3.resource("dynamodb")
-t_usuarios = dynamodb.Table(USERS_TABLE)
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
 def lambda_handler(event, context):
     try:
-        body = json.loads(event.get("body") or "{}")
-        tenant_id = (body.get("tenant_id") or "").strip()
-        user_id   = (body.get("user_id") or "").strip()
-        password  = (body.get("password") or "")
+        tenant_id = event.get('tenant_id')
+        user_id = event.get('user_id')
+        password = event.get('password')
+        
+        if user_id and password:
+            hashed_password = hash_password(password)
+            dynamodb = boto3.resource('dynamodb')
+            t_usuarios = dynamodb.Table('t_usuarios-dev')
+            t_usuarios.put_item(
+                Item={
+                    'tenant_id': tenant_id,
+                    'user_id': user_id,
+                    'password': hashed_password,
+                }
+            )
+            mensaje = {
+                'message': 'User registered successfully',
+                'user_id': user_id
+            }
+            return {
+                'statusCode': 200,
+                'body': mensaje
+            }
+        else:
+            mensaje = {
+                'error': 'Invalid request body: missing user_id or password'
+            }
+            return {
+                'statusCode': 400,
+                'body': mensaje
+            }
 
-        if not (tenant_id and user_id and password):
-            return response(400, {"error": "tenant_id, user_id y password son requeridos"})
-
-        # Idempotencia: si ya existe, 200 OK (o 409 si prefieres)
-        t_usuarios.put_item(
-            Item={
-                "tenant_id": tenant_id,
-                "user_id": user_id,
-                "password_hash": hash_password(password),
-                "created_at": datetime.utcnow().isoformat()
-            },
-            ConditionExpression="attribute_not_exists(tenant_id) AND attribute_not_exists(user_id)"
-        )
-        return response(200, {"message": "Usuario registrado", "tenant_id": tenant_id, "user_id": user_id})
-    except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
-        return response(200, {"message": "Usuario ya existe", "tenant_id": tenant_id, "user_id": user_id})
     except Exception as e:
-        return response(500, {"error": str(e)})
+        print("Exception:", str(e))
+        mensaje = {
+            'error': str(e)
+        }        
+        return {
+            'statusCode': 500,
+            'body': mensaje
+        }

@@ -1,40 +1,50 @@
-import os, json, uuid, boto3
+import boto3
+import hashlib
+import uuid
 from datetime import datetime, timedelta
-from ..seguridad.common import hash_password, response
 
-USERS_TABLE  = os.environ["USERS_TABLE"]
-TOKENS_TABLE = os.environ["TOKENS_TABLE"]
-dynamodb = boto3.resource("dynamodb")
-t_usuarios = dynamodb.Table(USERS_TABLE)
-t_tokens   = dynamodb.Table(TOKENS_TABLE)
+
+def hash_password(password):
+
+    return hashlib.sha256(password.encode()).hexdigest()
 
 def lambda_handler(event, context):
-    try:
-        body = json.loads(event.get("body") or "{}")
-        tenant_id = (body.get("tenant_id") or "").strip()
-        user_id   = (body.get("user_id") or "").strip()
-        password  = (body.get("password") or "")
-
-        if not (tenant_id and user_id and password):
-            return response(400, {"error": "tenant_id, user_id y password son requeridos"})
-
-        db = t_usuarios.get_item(Key={"tenant_id": tenant_id, "user_id": user_id})
-        item = db.get("Item")
-        if not item:
-            return response(403, {"error": "Usuario no existe"})
-
-        if hash_password(password) != item.get("password_hash"):
-            return response(403, {"error": "Password incorrecto"})
-
-        token = str(uuid.uuid4())
-        expires_dt = datetime.utcnow() + timedelta(minutes=60)
-        t_tokens.put_item(Item={
-            "token": token,
-            "tenant_id": tenant_id,
-            "user_id": user_id,
-            "expires": expires_dt.strftime("%Y-%m-%d %H:%M:%S")
-        })
-
-        return response(200, {"token": token, "expires": expires_dt.isoformat()})
-    except Exception as e:
-        return response(500, {"error": str(e)})
+    tenant_id = event.get('tenant_id')
+    user_id = event['user_id']
+    password = event['password']
+    hashed_password = hash_password(password)
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('t_usuarios-dev')
+    response = table.get_item(
+        Key={
+            'tenant_id': tenant_id,
+            'user_id': user_id
+        }
+    )
+    if 'Item' not in response:
+        return {
+            'statusCode': 403,
+            'body': 'Usuario no existe'
+        }
+    else:
+        hashed_password_bd = response['Item']['password']
+        if hashed_password == hashed_password_bd:
+            token = str(uuid.uuid4())
+            fecha_hora_exp = datetime.now() + timedelta(minutes=60)
+            registro = {
+                'token': token,
+                'expires': fecha_hora_exp.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            table = dynamodb.Table('t_tokens_acceso')
+            dynamodbResponse = table.put_item(Item = registro)
+        else:
+            return {
+                'statusCode': 403,
+                'body': 'Password incorrecto'
+            }
+    
+    # Salida (json)
+    return {
+        'statusCode': 200,
+        'token': token
+    }
