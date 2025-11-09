@@ -11,9 +11,6 @@ def lambda_handler(event, context):
     auth = validate_token_and_get_claims(token)
     if auth.get("statusCode") == 403:
         return _resp(403, {"error":"Acceso no autorizado"})
-    tenant_id = auth.get("tenant_id")
-    if not tenant_id:
-        return _resp(400, {"error":"Token sin tenant_id"})
 
     product_id = (event.get("pathParameters") or {}).get("product_id")
     if not product_id:

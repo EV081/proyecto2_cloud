@@ -14,18 +14,13 @@ def lambda_handler(event, context):
     auth = validate_token_and_get_claims(token)
     if auth.get("statusCode") == 403:
         return _resp(403, {"error":"Acceso no autorizado"})
-    token_tenant = auth.get("tenant_id")
 
     # body
     body = json.loads(event.get("body") or "{}")
     tenant_id = body.get("tenant_id")
     if not tenant_id:
         return _resp(400, {"error":"Falta tenant_id en el body"})
-
-    # opcional: exigir match con token
-    if token_tenant and tenant_id != token_tenant:
-        return _resp(403, {"error":"tenant_id del body no coincide con el token"})
-
+    
     # paginación
     limit = body.get("limit", 10)
     try:

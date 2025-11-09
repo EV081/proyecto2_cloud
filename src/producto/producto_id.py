@@ -12,7 +12,6 @@ def lambda_handler(event, context):
     auth = validate_token_and_get_claims(token)
     if auth.get("statusCode") == 403:
         return _resp(403, {"error":"Acceso no autorizado"})
-    token_tenant = auth.get("tenant_id")
 
     # body
     body = json.loads(event.get("body") or "{}")
@@ -23,10 +22,6 @@ def lambda_handler(event, context):
         return _resp(400, {"error":"Falta tenant_id en el body"})
     if not product_id:
         return _resp(400, {"error":"Falta product_id en el body"})
-
-    # opcional: exigir match con token
-    if token_tenant and tenant_id != token_tenant:
-        return _resp(403, {"error":"tenant_id del body no coincide con el token"})
 
     ddb = boto3.resource("dynamodb")
     table = ddb.Table(PRODUCTS_TABLE)
