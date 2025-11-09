@@ -8,7 +8,7 @@ provider:
   region: us-east-1
   stage: dev
   memorySize: 256
-  timeout: 30
+  timeout: 20
   iam:
     role: arn:aws:iam::468251834706:role/LabRole
   environment:
