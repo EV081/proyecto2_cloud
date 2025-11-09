@@ -15,25 +15,20 @@ def lambda_handler(event, context):
             return _resp(403, {"error":"Acceso no autorizado"})
 
         body = json.loads(event.get("body") or "{}")
-        bucket = body.get("bucket") or PRODUCTS_BUCKET
+        bucket = PRODUCTS_BUCKET
         key = body.get("key")
-        directory = body.get("directory")
         filename = body.get("filename")
-        tenant_id = body.get("tenant_id")  # opcional; si lo envías, prefijamos
         file_b64 = body.get("file_base64")
         content_type = body.get("content_type")
 
         if not bucket:
             return _resp(400, {"error":"Falta 'bucket'"})
+        
+        # Si no se proporciona el 'key', usa el 'filename' como el nombre del archivo
         if not key:
-            if not (directory and filename):
-                return _resp(400, {"error":"Proporciona 'key' o ('directory' y 'filename')"})
-            if not directory.endswith("/"):
-                directory += "/"
-            key = f"{directory}{filename}"
-
-        if tenant_id and not key.startswith(f"{tenant_id}/"):
-            key = f"{tenant_id}/{key}"
+            if not filename:
+                return _resp(400, {"error":"Falta 'filename'"})
+            key = filename
 
         if not file_b64:
             return _resp(400, {"error":"'file_base64' es requerido"})

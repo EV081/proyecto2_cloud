@@ -16,6 +16,7 @@ provider:
     PRODUCTS_TABLE: t_productos-${self:provider.stage}
     PRODUCTS_BUCKET: products-200millas-${self:provider.stage}
     VALIDAR_TOKEN_FN: millas-200-${self:provider.stage}-ValidarTokenAcceso
+    UPLOAD_IMAGE_LAMBDA_NAME: millas-200-${self:provider.stage}-UploadImagenProducto
   httpApi:
     cors: true
 
@@ -101,6 +102,7 @@ resources:
               AllowedMethods: ["PUT","GET","POST","HEAD"]
               AllowedOrigins: ["*"]
               ExposedHeaders: ["ETag"]
+              
     UsuariosTable:
       Type: AWS::DynamoDB::Table
       Properties:
