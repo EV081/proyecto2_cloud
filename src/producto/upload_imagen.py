@@ -1,6 +1,6 @@
 import os, json, base64, boto3
 from botocore.exceptions import ClientError
-from common.auth import get_token_from_headers, validate_token_and_get_claims
+from src.common.auth import get_token_from_headers, validate_token_and_get_claims
 
 PRODUCTS_BUCKET = os.environ.get("PRODUCTS_BUCKET")
 

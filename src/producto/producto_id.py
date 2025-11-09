@@ -1,6 +1,5 @@
-# src/producto/productos_obtener_post.py
 import os, json, boto3
-from common.auth import get_token_from_headers, validate_token_and_get_claims
+from src.common.auth import get_token_from_headers, validate_token_and_get_claims
 
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
 
