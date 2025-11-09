@@ -24,13 +24,17 @@ def lambda_handler(event, context):
 
     image_data = body.get("image")  # Obtener los datos de la imagen
     if image_data:
-        # Llamar al lambda upload_image para subir la imagen y obtener la URL o key
         try:
             lambda_client = boto3.client("lambda")
             response = lambda_client.invoke(
                 FunctionName=UPLOAD_IMAGE_LAMBDA_NAME,
-                InvocationType='RequestResponse',  # Espera la respuesta
-                Payload=json.dumps(image_data),  # Pasar los datos de la imagen
+                InvocationType='RequestResponse',
+                Payload=json.dumps({
+                    "bucket": "products-200millas-dev",  # Asegúrate de especificar el bucket
+                    "key": body["image"]["filename"],  # Usa el nombre del archivo como la key
+                    "file_base64": body["image"]["file_base64"],  # La imagen en base64
+                    "content_type": body["image"]["content_type"]  # El tipo de contenido
+                }),
             )
 
             # Obtener la respuesta de upload_image
