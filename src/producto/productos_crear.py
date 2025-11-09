@@ -3,7 +3,7 @@ from decimal import Decimal
 from src.common.auth import get_token_from_headers, validate_token_and_get_claims
 
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
-UPLOAD_IMAGE_LAMBDA_NAME = os.environ["UPLOAD_IMAGE_LAMBDA_NAME"] 
+UPLOAD_IMAGE_LAMBDA_NAME = os.environ["UPLOAD_IMAGE_LAMBDA_NAME"]
 
 def _resp(code, body):
     return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False, default=str)}
@@ -38,6 +38,7 @@ def lambda_handler(event, context):
             if response["StatusCode"] != 200:
                 return _resp(400, {"error": "Error al subir la imagen", "details": image_response})
 
+            # Verifica que la respuesta tenga la clave 'key' o 'url'
             image_url_or_key = image_response.get("key") or image_response.get("url")
             if not image_url_or_key:
                 return _resp(400, {"error": "No se recibió una URL o key de la imagen"})
@@ -48,7 +49,7 @@ def lambda_handler(event, context):
     else:
         image_url_or_key = None
 
-    # 3) Guardar el producto en DynamoDB
+    # Guardar el producto en DynamoDB
     ddb = boto3.resource("dynamodb")
     table = ddb.Table(PRODUCTS_TABLE)
     try:

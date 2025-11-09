@@ -99,9 +99,19 @@ resources:
         CorsConfiguration:
           CorsRules:
             - AllowedHeaders: ["*"]
-              AllowedMethods: ["PUT","GET","POST","HEAD"]
+              AllowedMethods: ["PUT", "GET", "POST", "HEAD"]
               AllowedOrigins: ["*"]
               ExposedHeaders: ["ETag"]
+        BucketPolicy:
+          PolicyName: PublicReadPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "s3:GetObject"
+                Resource: 
+                  - !Sub "arn:aws:s3:::products-200millas-${self:provider.stage}/*"
+                Principal: "*"
               
     UsuariosTable:
       Type: AWS::DynamoDB::Table
