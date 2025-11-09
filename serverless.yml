@@ -15,7 +15,7 @@ provider:
     USERS_TABLE: t_usuarios
     TOKENS_TABLE: t_tokens_acceso
     PRODUCTS_TABLE: t_productos
-    PRODUCTS_BUCKET: productos-200millas-${self:provider.stage}
+    PRODUCTS_BUCKET: products-200millas-${self:provider.stage}
   httpApi:
     cors: true
 
