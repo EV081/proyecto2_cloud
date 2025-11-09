@@ -46,6 +46,7 @@ functions:
           path: /usuarios/login
 
   ValidarTokenAcceso:
+    name: millas-200-dev-ValidarTokenAcceso
     handler: src.user.validar_token.lambda_handler
 
 resources:
