@@ -102,19 +102,6 @@ resources:
               AllowedMethods: ["PUT", "GET", "POST", "HEAD"]
               AllowedOrigins: ["*"]
               ExposedHeaders: ["ETag"]
-
-    ProductosBucketPolicy:
-      Type: AWS::S3::BucketPolicy
-      Properties:
-        Bucket: !Ref ProductosBucket
-        PolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            - Effect: "Allow"
-              Action: "s3:GetObject"
-              Resource: 
-                - !Sub "arn:aws:s3:::products-200millas-${self:provider.stage}/*"
-              Principal: "*"
               
     UsuariosTable:
       Type: AWS::DynamoDB::Table
