@@ -1,0 +1,108 @@
+service: pedidos-seguridad
+frameworkVersion: "4"
+
+org: darosv
+
+provider:
+  name: aws
+  runtime: python3.13
+  region: us-east-1
+  stage: dev
+  memorySize: 256
+  timeout: 30
+  iam:
+    role: arn:aws:iam::645337731455:role/LabRole
+  environment:
+    USERS_TABLE: t_usuarios
+    TOKENS_TABLE: t_tokens_acceso
+    PRODUCTS_TABLE: t_productos
+    PRODUCTS_BUCKET: productos-200millas-${self:provider.stage}
+  httpApi:
+    cors: true
+
+functions:
+  CrearProducto:
+    handler: src.producto.productos_crear.lambda_handler
+    events:
+      - httpApi:
+          method: POST
+          path: /productos/crear
+  UploadImagenProducto:
+    handler: src.producto.upload_imagen.lambda_handler
+    events:
+      - httpApi:
+          method: POST
+          path: /productos/upload_imagen
+  CrearUsuario:
+    handler: src.user.crear_usuario.lambda_handler
+    events:
+      - httpApi:
+          method: POST
+          path: /usuarios/crear
+
+  LoginUsuario:
+    handler: src.user.login_usuario.lambda_handler
+    events:
+      - httpApi:
+          method: POST
+          path: /usuarios/login
+
+  ValidarTokenAcceso:
+    handler: src.seguridad.validar_token.lambda_handler
+
+resources:
+  Resources:
+    ProductosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: t_productos
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: product_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: product_id
+            KeyType: RANGE
+
+    ProductosBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: productos-200millas-${self:provider.stage}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders: ["*"]
+              AllowedMethods: ["PUT","GET","POST","HEAD"]
+              AllowedOrigins: ["*"]
+              ExposedHeaders: ["ETag"]
+    UsuariosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: t_usuarios
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: user_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: user_id
+            KeyType: RANGE
+
+    TokensTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: t_tokens_acceso
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: token
+            AttributeType: S
+        KeySchema:
+          - AttributeName: token
+            KeyType: HASH
+
