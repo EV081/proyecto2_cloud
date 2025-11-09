@@ -1,5 +1,5 @@
 org: 200millas
-service: 200_millas
+service: 200-millas
 frameworkVersion: "4"
 
 provider:
