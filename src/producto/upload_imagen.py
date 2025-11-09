@@ -8,20 +8,25 @@ def _resp(code, body):
 
 def lambda_handler(event, context):
     try:
-        body = event
+
+        body = json.loads(event.get("body") or "{}")
         bucket = PRODUCTS_BUCKET
         key = body.get("key")
         filename = body.get("filename")
         file_b64 = body.get("file_base64")
         content_type = body.get("content_type")
 
+        if not bucket:
+            return _resp(400, {"error":"Falta 'bucket'"})
+        
+        # Si no se proporciona el 'key', usa el 'filename' como el nombre del archivo
         if not key:
             if not filename:
-                return _resp(400, {"error": "Falta 'filename'"})
+                return _resp(400, {"error":"Falta 'filename'"})
             key = filename
 
         if not file_b64:
-            return _resp(400, {"error": "'file_base64' es requerido"})
+            return _resp(400, {"error":"'file_base64' es requerido"})
 
         try:
             file_bytes = base64.b64decode(file_b64)
@@ -36,7 +41,6 @@ def lambda_handler(event, context):
         resp = s3.put_object(**put_kwargs)
         etag = (resp.get("ETag") or "").strip('"')
 
-        # Regresa el key de la imagen subido a S3
         return _resp(200, {
             "bucket": bucket, "key": key,
             "size_bytes": len(file_bytes), "etag": etag,
@@ -46,7 +50,7 @@ def lambda_handler(event, context):
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code")
         if code == "AccessDenied":
-            return _resp(403, {"error": "Acceso denegado al bucket"})
+            return _resp(403, {"error":"Acceso denegado al bucket"})
         if code == "NoSuchBucket":
             return _resp(400, {"error": f"El bucket {bucket} no existe"})
         return _resp(400, {"error": f"Error S3: {e}"})
