@@ -15,7 +15,6 @@ def _json_body(event):
     return body
 
 
-# Inicio - Proteger el Lambda (mejorado)
 def _extract_token_from_headers(headers):
     if not headers:
         return None
@@ -30,52 +29,7 @@ def _extract_token_from_headers(headers):
     return parts[-1]
 
 
-def lambda_handler(event, context):
-    # Token validation from headers
-    token = _extract_token_from_headers(event.get('headers', {}))
-    if not token:
-        return {'statusCode': 401, 'error': 'Falta header Authorization.'}
-
-    lambda_client = boto3.client('lambda')
-    payload = json.dumps({"token": token}).encode('utf-8')
-
-    try:
-        invoke_response = lambda_client.invoke(
-            FunctionName="ValidarTokenAcceso",
-            InvocationType='RequestResponse',
-            Payload=payload,
-        )
-        raw = invoke_response['Payload'].read() or b"{}"
-        resp_obj = json.loads(raw.decode('utf-8') if isinstance(raw, (bytes, bytearray)) else raw)
-
-        # resp_obj puede ser {statusCode:..., body: {...}} o directamente un dict
-        status = int(resp_obj.get('statusCode', 500))
-        body = resp_obj.get('body', resp_obj)
-        if isinstance(body, str):
-            try:
-                body = json.loads(body)
-            except Exception:
-                body = {"message": body}
-
-        # Opcional: log para debugging
-        print('ValidarTokenAcceso response:', status, body)
-
-        if status == 403:
-            return {'statusCode': 403, 'status': 'Forbidden - Acceso No Autorizado'}
-
-        if status != 200:
-            # manejar otros códigos (ej. 400) como fallo de validación
-            return {'statusCode': status, 'error': body}
-
-    except Exception as e:
-        # problemas al invocar la Lambda validadora (permisos, tiempo de espera, etc.)
-        print('Error invoking ValidarTokenAcceso:', str(e))
-        return {'statusCode': 500, 'error': 'Error interno al validar token.'}
-# Fin - Proteger el Lambda
-
-
 def _validar_token(token):
-    # Directly call the local validator handler (no remote Lambda invocation)
     try:
         from src.seguridad.validar_token import lambda_handler as validar_handler
         # validar_token accepts either an event with body or a direct {'token': token}
@@ -96,7 +50,7 @@ def _validar_token(token):
 
 def lambda_handler(event, context):
     # Token validation from headers
-    token = _extraer_token(event.get('headers', {}))
+    token = _extract_token_from_headers(event.get('headers', {}))
     if not token:
         return {"statusCode": 401, "error": "Falta header Authorization."}
 
