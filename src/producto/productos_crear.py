@@ -30,11 +30,10 @@ def lambda_handler(event, context):
                 FunctionName=UPLOAD_IMAGE_LAMBDA_NAME,
                 InvocationType='RequestResponse',
                 Payload=json.dumps({
-                    "bucket": "products-200millas-dev",  # Asegúrate de especificar el bucket
-                    "key": body["image"]["filename"],  # Usa el nombre del archivo como la key
-                    "file_base64": body["image"]["file_base64"],  # La imagen en base64
-                    "content_type": body["image"]["content_type"]  # El tipo de contenido
-                }),
+                    "key": body["image"]["filename"],  # Nombre del archivo
+                    "file_base64": body["image"]["file_base64"],  # Imagen en base64
+                    "content_type": body["image"]["content_type"]  # Tipo de contenido
+                })
             )
 
             # Obtener la respuesta de upload_image
@@ -43,7 +42,7 @@ def lambda_handler(event, context):
                 return _resp(400, {"error": "Error al subir la imagen", "details": image_response})
 
             # Verifica que la respuesta tenga la clave 'key' o 'url'
-            image_url_or_key = image_response.get("key") or image_response.get("url")
+            image_url_or_key = image_response.get("key")
             if not image_url_or_key:
                 return _resp(400, {"error": "No se recibió una URL o key de la imagen"})
 
