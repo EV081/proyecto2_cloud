@@ -4,10 +4,8 @@ import boto3
 import os
 from botocore.exceptions import ClientError
 
-# Validar token de autorización
 def validate_token(token):
     lambda_client = boto3.client('lambda')
-    # Use configured function name if provided via env, otherwise fallback to literal
     validar_fn = os.environ.get('VALIDAR_TOKEN_FN', 'ValidarTokenAcceso')
     payload_string = json.dumps({"token": token})
     try:
@@ -19,24 +17,14 @@ def validate_token(token):
         response = json.loads(invoke_response['Payload'].read())
         if response.get('statusCode') == 403:
             return False
-        return response  # Esto devuelve los datos del token si es válido.
+        return response
     except ClientError as e:
         return False  # Si ocurre un error al invocar la Lambda de validación, retornamos falso.
 
+
 def lambda_handler(event, context):
-    """
-    Espera en event['body']:
-      {
-        "bucket": "mi-bucket-123",
-        "key": "carpeta/sub/archivo.pdf",
-        "directory": "carpeta/sub/",
-        "filename": "archivo.pdf",
-        "file_base64": "<BASE64>",
-        "content_type": "application/pdf"
-      }
-    """
     try:
-        # Obtener el token de los headers (Authorization)
+        # Obtener el token desde los headers
         token = (event['headers'].get('Authorization') or "").strip()
         if not token:
             return {"statusCode": 400, "error": "Falta el token en los headers (Authorization)."}

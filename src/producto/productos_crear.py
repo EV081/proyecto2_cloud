@@ -1,66 +1,35 @@
 import boto3
 import json
 
+PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
+
 def lambda_handler(event, context):
     print(event)
+    # Entrada (json)
+    producto = event['body']
     
-    # Obtener el token desde los headers
-    token = event['headers'].get('Authorization', '').strip()
-    
-    if not token:
-        return {
-            'statusCode': 400,
-            'error': 'Falta el token en los headers (Authorization).'
-        }
-
-    # Validar token
+    # Inicio - Proteger el Lambda
+    token = event['headers']['Authorization']
     lambda_client = boto3.client('lambda')    
-    payload_string = json.dumps({"token": token})
-    
-    try:
-        invoke_response = lambda_client.invoke(
-            FunctionName="ValidarTokenAcceso",
-            InvocationType='RequestResponse',
-            Payload=payload_string
-        )
-        response = json.loads(invoke_response['Payload'].read())
-        print(response)
-    except Exception as e:
+    payload_string = '{ "token": "' + token +  '" }'
+    invoke_response = lambda_client.invoke(FunctionName="ValidarTokenAcceso",
+                                           InvocationType='RequestResponse',
+                                           Payload = payload_string)
+    response = json.loads(invoke_response['Payload'].read())
+    print(response)
+    if response['statusCode'] == 403:
         return {
-            'statusCode': 500,
-            'error': f'Error al invocar la función de validación: {str(e)}'
+            'statusCode' : 403,
+            'status' : 'Forbidden - Acceso No Autorizado'
         }
+    # Fin - Proteger el Lambda        
 
-    # Si la validación del token falla
-    if response.get('statusCode') == 403:
-        return {
-            'statusCode': 403,
-            'status': 'Forbidden - Acceso No Autorizado'
-        }
-
-    # Procesar el producto (suponiendo que el cuerpo tiene el formato adecuado)
-    producto = event.get('body', {})
-
-    if not producto:
-        return {
-            'statusCode': 400,
-            'error': 'No se recibió el producto en el cuerpo de la solicitud.'
-        }
-
-    # Guardar el producto en DynamoDB
+    # Proceso
     dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('t_productos-dev')
-    try:
-        response = table.put_item(Item=producto)
-    except Exception as e:
-        return {
-            'statusCode': 500,
-            'error': f'Error al guardar el producto en DynamoDB: {str(e)}'
-        }
-
+    table = dynamodb.Table(PRODUCTS_TABLE)
+    response = table.put_item(Item=producto)
     # Salida (json)
     return {
         'statusCode': 200,
-        'message': 'Producto creado correctamente',
         'response': response
     }
