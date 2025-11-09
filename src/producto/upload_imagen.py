@@ -1,41 +1,36 @@
-import boto3
+import json
 import base64
+import boto3
 from botocore.exceptions import ClientError
-
 
 def lambda_handler(event, context):
     """
     Espera en event['body']:
       {
         "bucket": "mi-bucket-123",
-        # O bien provees 'key' completo:
         "key": "carpeta/sub/archivo.pdf",
-        # O construyes desde 'directory' + 'filename':
         "directory": "carpeta/sub/",
         "filename": "archivo.pdf",
-
-        # Contenido del archivo en base64
         "file_base64": "<BASE64>",
-        # Opcional
         "content_type": "application/pdf"
       }
     """
-    # Inicio - Proteger el Lambda
-    token = event['headers']['Authorization']
+    # Validar token de autorización
+    token = event['headers'].get('Authorization')
+    if not token:
+        return {'statusCode': 401, 'error': 'Falta header Authorization.'}
+
     lambda_client = boto3.client('lambda')    
     payload_string = '{ "token": "' + token +  '" }'
-    invoke_response = lambda_client.invoke(FunctionName="ValidarTokenAcceso",
-                                           InvocationType='RequestResponse',
-                                           Payload = payload_string)
-    response = json.loads(invoke_response['Payload'].read())
-    print(response)
-    if response['statusCode'] == 403:
-        return {
-            'statusCode' : 403,
-            'status' : 'Forbidden - Acceso No Autorizado'
-        }
-    # Fin - Proteger el Lambda  
+    try:
+        invoke_response = lambda_client.invoke(FunctionName="ValidarTokenAcceso", InvocationType='RequestResponse', Payload=payload_string)
+        response = json.loads(invoke_response['Payload'].read())
+        if response['statusCode'] == 403:
+            return {'statusCode': 403, 'status': 'Forbidden - Acceso No Autorizado'}
+    except ClientError as e:
+        return {'statusCode': 500, 'error': f'Error al invocar la función Lambda de validación: {str(e)}'}
 
+    # Obtener parámetros del cuerpo
     body = event.get('body', {}) or {}
     bucket = body.get('bucket')
     key = body.get('key')
@@ -53,19 +48,20 @@ def lambda_handler(event, context):
             directory = directory + '/'
         key = directory + filename
     if not file_b64:
-        return {"statusCode": 400, "error": "Falta 'file_base64'."}
+        return {"statusCode": 400, "error": "'file_base64' es requerido y no puede estar vacío."}
 
+    # Decodificar archivo base64
     try:
         file_bytes = base64.b64decode(file_b64)
-    except Exception:
-        return {"statusCode": 400, "error": "El 'file_base64' no es válido."}
+    except Exception as e:
+        return {"statusCode": 400, "error": f"El 'file_base64' no es válido: {str(e)}"}
 
+    # Subir archivo a S3
     try:
         s3 = boto3.client('s3')
         put_kwargs = {"Bucket": bucket, "Key": key, "Body": file_bytes}
         if content_type:
             put_kwargs["ContentType"] = content_type
-
         resp = s3.put_object(**put_kwargs)
         etag = resp.get('ETag', '').strip('"')
 
@@ -78,4 +74,9 @@ def lambda_handler(event, context):
             "message": "Archivo subido."
         }
     except ClientError as e:
-        return {"statusCode": 400, "error": str(e)}
+        error_code = e.response['Error']['Code']
+        if error_code == 'AccessDenied':
+            return {"statusCode": 403, "error": "Acceso denegado al bucket de S3."}
+        elif error_code == 'NoSuchBucket':
+            return {"statusCode": 400, "error": f"El bucket {bucket} no existe."}
+        return {"statusCode": 400, "error": f"Error al subir archivo a S3: {str(e)}"}
