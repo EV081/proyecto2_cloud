@@ -1,65 +1,42 @@
 import boto3
-import os
-import json
 import base64
 from botocore.exceptions import ClientError
 
 
-def _json_body(event):
-    body = event.get('body', {}) or {}
-    if isinstance(body, str):
-        try:
-            body = json.loads(body)
-        except Exception:
-            body = {}
-    return body
-
-
-def _extract_token_from_headers(headers):
-    if not headers:
-        return None
-    auth = headers.get('Authorization') or headers.get('authorization')
-    if not auth:
-        return None
-    parts = auth.split()
-    if len(parts) == 0:
-        return None
-    if parts[0].lower() == 'bearer' and len(parts) >= 2:
-        return parts[1]
-    return parts[-1]
-
-
-def _validar_token(token):
-    try:
-        from src.seguridad.validar_token import lambda_handler as validar_handler
-        # validar_token accepts either an event with body or a direct {'token': token}
-        result = validar_handler({"token": token}, None)
-        status = int(result.get('statusCode', 500))
-        body = result.get('body') or {}
-        if isinstance(body, str):
-            try:
-                body = json.loads(body)
-            except Exception:
-                body = {"message": body}
-        data = {**body}
-        data.setdefault('statusCode', status)
-        return (status == 200, data)
-    except Exception as e:
-        return (False, {"statusCode": 500, "error": str(e)})
-
-
 def lambda_handler(event, context):
-    # Token validation from headers
-    token = _extract_token_from_headers(event.get('headers', {}))
-    if not token:
-        return {"statusCode": 401, "error": "Falta header Authorization."}
+    """
+    Espera en event['body']:
+      {
+        "bucket": "mi-bucket-123",
+        # O bien provees 'key' completo:
+        "key": "carpeta/sub/archivo.pdf",
+        # O construyes desde 'directory' + 'filename':
+        "directory": "carpeta/sub/",
+        "filename": "archivo.pdf",
 
-    ok, _ = _validar_token(token)
-    if not ok:
-        return {"statusCode": 403, "status": "Forbidden - Acceso No Autorizado"}
+        # Contenido del archivo en base64
+        "file_base64": "<BASE64>",
+        # Opcional
+        "content_type": "application/pdf"
+      }
+    """
+    # Inicio - Proteger el Lambda
+    token = event['headers']['Authorization']
+    lambda_client = boto3.client('lambda')    
+    payload_string = '{ "token": "' + token +  '" }'
+    invoke_response = lambda_client.invoke(FunctionName="ValidarTokenAcceso",
+                                           InvocationType='RequestResponse',
+                                           Payload = payload_string)
+    response = json.loads(invoke_response['Payload'].read())
+    print(response)
+    if response['statusCode'] == 403:
+        return {
+            'statusCode' : 403,
+            'status' : 'Forbidden - Acceso No Autorizado'
+        }
+    # Fin - Proteger el Lambda  
 
-    # Body and upload logic
-    body = _json_body(event)
+    body = event.get('body', {}) or {}
     bucket = body.get('bucket')
     key = body.get('key')
     directory = body.get('directory')
