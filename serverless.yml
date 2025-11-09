@@ -1,7 +1,6 @@
-service: pedidos-seguridad
+org: 200millas
+service: millas-200
 frameworkVersion: "4"
-
-org: darosv
 
 provider:
   name: aws
@@ -9,14 +8,14 @@ provider:
   region: us-east-1
   stage: dev
   memorySize: 256
-  timeout: 30
+  timeout: 20
   iam:
-    role: arn:aws:iam::645337731455:role/LabRole
+    role: arn:aws:iam::468251834706:role/LabRole
   environment:
-    USERS_TABLE: t_usuarios
-    TOKENS_TABLE: t_tokens_acceso
-    PRODUCTS_TABLE: t_productos
-    PRODUCTS_BUCKET: productos-200millas-${self:provider.stage}
+    USERS_TABLE: t_usuarios-${self:provider.stage}
+    TOKENS_TABLE: t_tokens_acceso-${self:provider.stage}
+    PRODUCTS_TABLE: t_productos-${self:provider.stage}
+    PRODUCTS_BUCKET: products-200millas-${self:provider.stage}
   httpApi:
     cors: true
 
@@ -55,7 +54,7 @@ resources:
     ProductosTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: t_productos
+        TableName: t_productos-${self:provider.stage}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: tenant_id
@@ -71,7 +70,7 @@ resources:
     ProductosBucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: productos-200millas-${self:provider.stage}
+        BucketName: products-200millas-${self:provider.stage}
         CorsConfiguration:
           CorsRules:
             - AllowedHeaders: ["*"]
@@ -81,7 +80,7 @@ resources:
     UsuariosTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: t_usuarios
+        TableName: t_usuarios-${self:provider.stage}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: tenant_id
@@ -97,7 +96,7 @@ resources:
     TokensTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: t_tokens_acceso
+        TableName: t_tokens_acceso-${self:provider.stage}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: token

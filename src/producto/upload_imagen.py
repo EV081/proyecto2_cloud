@@ -29,14 +29,46 @@ def _extraer_token(headers):
 def _validar_token(token):
     lambda_client = boto3.client('lambda')
     payload = json.dumps({"token": token})
-    resp = lambda_client.invoke(
-        FunctionName="validar_token",
-        InvocationType='RequestResponse',
-        Payload=payload.encode('utf-8')
-    )
-    data = json.loads(resp['Payload'].read() or "{}")
-    status = int(data.get("statusCode", 500))
-    return (status == 200, data)
+
+    # Allow overriding the function name via env var; fallback strategies follow.
+    func_name = os.environ.get('VALIDAR_TOKEN_FUNCTION')
+
+    # Try invoking the remote Lambda if a function name is available.
+    if func_name:
+        try:
+            resp = lambda_client.invoke(
+                FunctionName=func_name,
+                InvocationType='RequestResponse',
+                Payload=payload.encode('utf-8')
+            )
+            data = json.loads(resp['Payload'].read() or "{}")
+            status = int(data.get("statusCode", 500))
+            return (status == 200, data)
+        except Exception:
+            # fall through to local-call fallback
+            pass
+
+    # Fallback: try to call the validator handler directly (same package).
+    try:
+        # local import to avoid circular imports at module load
+        from src.seguridad.validar_token import lambda_handler as validar_handler
+        # validator accepts either {"token": "..."} or event with body
+        result = validar_handler({"token": token}, None)
+        # result is expected to be a response dict with statusCode
+        status = int(result.get("statusCode", 500))
+        # normalise to match the previous return shape (body may be JSON string)
+        body = result.get("body") or {}
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)
+            except Exception:
+                body = {"message": body}
+        data = {**body}
+        data.setdefault("statusCode", status)
+        return (status == 200, data)
+    except Exception as e:
+        # If everything fails, return a 500-like payload for the caller to handle.
+        return (False, {"statusCode": 500, "error": str(e)})
 
 def lambda_handler(event, context):
     token = _extraer_token(event.get('headers', {}))
