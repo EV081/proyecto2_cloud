@@ -30,16 +30,22 @@ def _extraer_token(headers):
     return None
 
 def _validar_token(token):
-    lambda_client = boto3.client('lambda')
-    payload = json.dumps({"token": token})
-    resp = lambda_client.invoke(
-        FunctionName=VALIDAR_TOKEN_FN,
-        InvocationType='RequestResponse',
-        Payload=payload.encode('utf-8')
-    )
-    data = json.loads(resp['Payload'].read() or "{}")
-    status = int(data.get("statusCode", 500))
-    return (status == 200, data)
+    # Call the local validar_token handler directly to validate the token
+    try:
+        from src.seguridad.validar_token import lambda_handler as validar_handler
+        result = validar_handler({"token": token}, None)
+        status = int(result.get('statusCode', 500))
+        body = result.get('body') or {}
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)
+            except Exception:
+                body = {"message": body}
+        data = {**body}
+        data.setdefault('statusCode', status)
+        return (status == 200, data)
+    except Exception as e:
+        return (False, {"statusCode": 500, "error": str(e)})
 
 def lambda_handler(event, context):
     token = _extraer_token(event.get('headers', {}))
