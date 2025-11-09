@@ -10,12 +10,11 @@ def lambda_handler(event, context):
     auth = validate_token_and_get_claims(token)
     if auth.get("statusCode") == 403:
         return _resp(403, {"error":"Acceso no autorizado"})
-    tenant_id = auth.get("tenant_id")
-    if not tenant_id:
-        return _resp(400, {"error":"Token sin tenant_id"})
 
     body = json.loads(event.get("body") or "{}")
     body["tenant_id"] = tenant_id
+    if not tenant_id:
+        return _resp(400, {"error": "Falta tenant_id en el body"})
 
     for req in ("product_id", "nombre"):
         if req not in body:
