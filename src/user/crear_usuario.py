@@ -1,19 +1,29 @@
 import boto3
 import hashlib
+import json
+import os
+
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+
 def lambda_handler(event, context):
     try:
-        tenant_id = event.get('tenant_id')
-        user_id = event.get('user_id')
-        password = event.get('password')
-        
+        # HTTP API events usually put the payload in event['body'] as a JSON string.
+        body = event.get('body', {}) or {}
+        if isinstance(body, str):
+            body = json.loads(body)
+
+        tenant_id = body.get('tenant_id')
+        user_id = body.get('user_id')
+        password = body.get('password')
+
         if user_id and password:
             hashed_password = hash_password(password)
             dynamodb = boto3.resource('dynamodb')
-            t_usuarios = dynamodb.Table('t_usuarios-dev')
+            users_table = os.environ.get('USERS_TABLE', 't_usuarios-dev')
+            t_usuarios = dynamodb.Table(users_table)
             t_usuarios.put_item(
                 Item={
                     'tenant_id': tenant_id,
@@ -42,7 +52,7 @@ def lambda_handler(event, context):
         print("Exception:", str(e))
         mensaje = {
             'error': str(e)
-        }        
+        }
         return {
             'statusCode': 500,
             'body': mensaje
