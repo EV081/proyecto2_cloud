@@ -2,7 +2,7 @@ import os, json, boto3
 from src.common.auth import get_token_from_headers, validate_token_and_get_claims
 
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
-PRODUCTS_BUCKET = os.environ.get("PRODUCTS_BUCKET")  # Asegúrate de tener el bucket configurado
+PRODUCTS_BUCKET = os.environ.get("PRODUCTS_BUCKET")
 
 def _resp(code, body):
     return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False)}
