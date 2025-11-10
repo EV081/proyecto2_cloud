@@ -35,9 +35,9 @@ def lambda_handler(event, context):
                     "content_type": body["image"]["content_type"]  # Tipo de contenido
                 })
             )
-
             # Obtener la respuesta de upload_image
             image_response = json.loads(response['Payload'].read().decode())
+            print("Respuesta del Lambda de carga de imágenes:", image_response)
             if response["StatusCode"] != 200:
                 return _resp(400, {"error": "Error al subir la imagen", "details": image_response})
 
