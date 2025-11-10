@@ -23,8 +23,6 @@ def lambda_handler(event, context):
         return _resp(400, {"error": "Falta product_id en el body"})
 
     image_data = body.get("image")  # Obtener los datos de la imagen
-    image_url_or_key = None  # Inicializar la variable
-
     if image_data:
         try:
             lambda_client = boto3.client("lambda")
@@ -37,23 +35,25 @@ def lambda_handler(event, context):
                     "content_type": body["image"]["content_type"]
                 })
             )
-
             # Obtener la respuesta de upload_image
             image_response = json.loads(response['Payload'].read().decode())
             if response["StatusCode"] != 200:
                 return _resp(400, {"error": "Error al subir la imagen", "details": image_response})
 
             # Verifica que la respuesta tenga la clave 'key' o 'url'
-            image_url_or_key = image_response.get("key")  # Ahora obtenemos 'key' de la respuesta
+            image_url_or_key = body["image"]["key"]
 
         except Exception as e:
             return _resp(500, {"error": f"Error al invocar el Lambda de subida de imagen: {str(e)}"})
 
-    # Guardar solo el 'key' en DynamoDB
+    else:
+        image_url_or_key = None
+
+    # Guardar el producto en DynamoDB
     ddb = boto3.resource("dynamodb")
     table = ddb.Table(PRODUCTS_TABLE)
     try:
-        body["image_url"] = image_url_or_key  # Guardamos solo el 'key' de la imagen
+        body["image_url"] = image_url_or_key
         table.put_item(
             Item=body,
             ConditionExpression="attribute_not_exists(tenant_id) AND attribute_not_exists(product_id)"
