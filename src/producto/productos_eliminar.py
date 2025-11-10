@@ -1,11 +1,22 @@
 import os, json, boto3
 from src.common.auth import get_token_from_headers, validate_token_and_get_claims
+from decimal import Decimal
 
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
 PRODUCTS_BUCKET = os.environ.get("PRODUCTS_BUCKET")
 
 def _resp(code, body):
     return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False)}
+
+def convert_decimal(obj):
+    """Convierte objetos Decimal a float de manera recursiva."""
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: convert_decimal(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimal(i) for i in obj]
+    return obj
 
 def lambda_handler(event, context):
     token = get_token_from_headers(event)
@@ -57,4 +68,6 @@ def lambda_handler(event, context):
     except ddb.meta.client.exceptions.ConditionalCheckFailedException:
         return _resp(404, {"error": "Producto no encontrado"})
 
-    return _resp(200, {"ok": True, "deleted": res.get("Attributes")})
+    # Convertir los valores de Decimal a float antes de devolver la respuesta
+    deleted_attributes = convert_decimal(res.get("Attributes"))
+    return _resp(200, {"ok": True, "deleted": deleted_attributes})
