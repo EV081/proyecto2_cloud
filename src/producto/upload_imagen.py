@@ -19,10 +19,8 @@ def lambda_handler(event, context):
         if not bucket:
             return _resp(400, {"error":"Falta 'bucket'"})
         
-        # Si no se proporciona el 'key', usa el 'filename' como el nombre del archivo
-        if not key:
-            if not filename:
-                return _resp(400, {"error":"Falta 'filename'"})
+        # Si no se proporciona el 'kfilenameey', usa el 'key' como el nombre del archivo
+        if not filename:
             key = filename
 
         if not file_b64:

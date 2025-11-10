@@ -30,9 +30,9 @@ def lambda_handler(event, context):
                 FunctionName=UPLOAD_IMAGE_LAMBDA_NAME,
                 InvocationType='RequestResponse',
                 Payload=json.dumps({
-                    "filename": body["image"]["filename"],  # Nombre del archivo
-                    "file_base64": body["image"]["file_base64"],  # Imagen en base64
-                    "content_type": body["image"]["content_type"]  # Tipo de contenido
+                    "key": body["image"]["key"],
+                    "file_base64": body["image"]["file_base64"],
+                    "content_type": body["image"]["content_type"]
                 })
             )
             # Obtener la respuesta de upload_image
@@ -41,9 +41,7 @@ def lambda_handler(event, context):
                 return _resp(400, {"error": "Error al subir la imagen", "details": image_response})
 
             # Verifica que la respuesta tenga la clave 'key' o 'url'
-            image_url_or_key = image_response.get("key")
-            if not image_url_or_key:
-                return _resp(400, {"error": "No se recibió una URL o key de la imagen"})
+            image_url_or_key = body["image"]["key"]
 
         except Exception as e:
             return _resp(500, {"error": f"Error al invocar el Lambda de subida de imagen: {str(e)}"})
