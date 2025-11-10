@@ -13,13 +13,11 @@ def _resp(code, body):
     return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False)}
 
 def lambda_handler(event, context):
-    # Validación de acceso
     token = get_token_from_headers(event)
     auth = validate_token_and_get_claims(token)
     if auth.get("statusCode") == 403:
         return _resp(403, {"error": "Acceso no autorizado"})
 
-    # Obtención del cuerpo del evento
     body = json.loads(event.get("body") or "{}", parse_float=Decimal)
     tenant_id = body.get("tenant_id")
     product_id = body.get("product_id")
@@ -28,12 +26,11 @@ def lambda_handler(event, context):
     if not product_id:
         return _resp(400, {"error": "Falta product_id en el body"})
 
-    image_data = body.get("image")  # Obtener los datos de la imagen
+    image_data = body.get("image")
     image_url_or_key = None
 
     if image_data:
         try:
-            # Subida de la imagen a S3
             bucket = PRODUCTS_BUCKET
             key = body["image"]["key"]
             file_b64 = body["image"]["file_base64"]
@@ -59,7 +56,7 @@ def lambda_handler(event, context):
             resp = s3.put_object(**put_kwargs)
             etag = (resp.get("ETag") or "").strip('"')
 
-            image_url_or_key = key  # El 'key' será la URL para identificar la imagen
+            image_url_or_key = key
 
         except ClientError as e:
             code = e.response.get("Error", {}).get("Code")
@@ -71,7 +68,6 @@ def lambda_handler(event, context):
         except Exception as e:
             return _resp(500, {"error": f"Error interno al subir la imagen: {e}"})
 
-    # Guardar el producto en DynamoDB
     ddb = boto3.resource("dynamodb")
     table = ddb.Table(PRODUCTS_TABLE)
     try:
