@@ -33,11 +33,10 @@ def lambda_handler(event, context):
         return _resp(400, {"error": "Falta product_id en el body"})
 
     ddb = boto3.resource("dynamodb")
-    s3 = boto3.client("s3")  # Inicializar el cliente de S3
+    s3 = boto3.client("s3")
     table = ddb.Table(PRODUCTS_TABLE)
 
     try:
-        # Obtener los detalles del producto antes de eliminarlo para obtener la URL o key de la imagen
         res = table.get_item(
             Key={"tenant_id": tenant_id, "product_id": product_id}
         )
@@ -45,21 +44,17 @@ def lambda_handler(event, context):
         if "Item" not in res:
             return _resp(404, {"error": "Producto no encontrado"})
 
-        # Si el producto tiene una imagen asociada, eliminamos el archivo de S3
         product = res["Item"]
         image_key = product.get("image_url")
 
         if image_key:
             try:
-                # Eliminar el archivo de S3
                 s3.delete_object(Bucket=PRODUCTS_BUCKET, Key=image_key)
                 print(f"Imagen {image_key} eliminada de S3.")
             except Exception as e:
-                # Si hay un error al eliminar el archivo en S3, puedes manejarlo aquí
                 print(f"Error al eliminar la imagen de S3: {str(e)}")
                 return _resp(500, {"error": f"Error al eliminar la imagen de S3: {str(e)}"})
 
-        # Ahora eliminar el producto de DynamoDB
         res = table.delete_item(
             Key={"tenant_id": tenant_id, "product_id": product_id},
             ConditionExpression="attribute_exists(tenant_id) AND attribute_exists(product_id)",
@@ -68,6 +63,5 @@ def lambda_handler(event, context):
     except ddb.meta.client.exceptions.ConditionalCheckFailedException:
         return _resp(404, {"error": "Producto no encontrado"})
 
-    # Convertir los valores de Decimal a float antes de devolver la respuesta
     deleted_attributes = convert_decimal(res.get("Attributes"))
     return _resp(200, {"ok": True, "deleted": deleted_attributes})
