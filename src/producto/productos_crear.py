@@ -10,51 +10,23 @@ PRODUCTS_BUCKET = os.environ.get("PRODUCTS_BUCKET")
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
 
 def _resp(code, body):
-    return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False)}
+    return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False, default=str)}
 
-
-def _extract_claims(auth: dict):
-
-    if not isinstance(auth, dict):
-        return False, {}, "Acceso no autorizado", 403
-
-    if auth.get("ok") is True and isinstance(auth.get("claims"), dict):
-        return True, auth["claims"], None, 200
-
-    status = auth.get("statusCode", 500)
-    body = auth.get("body")
-    if status != 200:
-        msg = None
-        if isinstance(body, str):
-            try:
-                body = json.loads(body)
-            except json.JSONDecodeError:
-                msg = body
-        if isinstance(body, dict):
-            msg = body.get("error") or body.get("message")
-        return False, {}, (msg or "Acceso no autorizado"), status if status in (401, 403) else 403
-
-    if isinstance(body, str):
-        try:
-            body = json.loads(body)
-        except json.JSONDecodeError:
-            body = {}
-    if not isinstance(body, dict):
-        body = {}
-    return True, body, None, 200
-
+def _parse_body(event):
+    return json.loads(event.get("body") or "{}", parse_float=Decimal)
 
 def lambda_handler(event, context):
     token = get_token_from_headers(event)
     auth = validate_token_and_get_claims(token)
-    ok, claims, err, status = _extract_claims(auth)
-    if not ok:
-        return _resp(status, {"error": err})
+    if auth.get("statusCode") != 200:
+        return _resp(403, {"error": "Acceso no autorizado"})
 
-    if not require_admin(claims):
-        return _resp(403, {"error": "Requiere rol admin"})
-
-    body = json.loads(event.get("body") or "{}", parse_float=Decimal)
+    role = require_admin(token)
+    if role.get("statusCode") != 200:
+        err = role.get("body", {}).get("error", "Acceso no autorizado")
+        return _resp(403, {"error": err})
+    
+    body = _parse_body(event)
     tenant_id = body.get("tenant_id")
     product_id = body.get("product_id")
     if not tenant_id:
@@ -64,18 +36,16 @@ def lambda_handler(event, context):
 
     image_data = body.get("image")
     image_url_or_key = None
-
     if image_data:
         try:
             bucket = PRODUCTS_BUCKET
-            key = body["image"]["key"]
-            file_b64 = body["image"]["file_base64"]
-            content_type = body["image"]["content_type"]
-
             if not bucket:
-                return _resp(400, {"error": "Falta 'bucket'"})
+                return _resp(500, {"error": "PRODUCTS_BUCKET no configurado"})
+            key = image_data.get("key")
+            file_b64 = image_data.get("file_base64")
+            content_type = image_data.get("content_type")
             if not key:
-                return _resp(400, {"error": "Falta 'key'"})
+                return _resp(400, {"error": "Falta 'key' en image"})
             if not file_b64:
                 return _resp(400, {"error": "'file_base64' es requerido"})
 
@@ -88,9 +58,7 @@ def lambda_handler(event, context):
             put_kwargs = {"Bucket": bucket, "Key": key, "Body": file_bytes}
             if content_type:
                 put_kwargs["ContentType"] = content_type
-
-            resp = s3.put_object(**put_kwargs)
-            etag = (resp.get("ETag") or "").strip('"')
+            s3.put_object(**put_kwargs)
 
             image_url_or_key = key
 
