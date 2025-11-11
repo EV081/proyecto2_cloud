@@ -18,9 +18,8 @@ def lambda_handler(event, context):
     if not tenant_id:
         return _resp(400, {"error":"Falta tenant_id en el body"})
 
-    # Parámetros de paginación estilo page/size
     page = _safe_int(body.get("page", 0), 0)
-    size = _safe_int(body.get("size", body.get("limit", 10)), 10)  # aceptamos 'size' o 'limit'
+    size = _safe_int(body.get("size", body.get("limit", 10)), 10)
     if size <= 0 or size > 100:
         size = 10
     if page < 0:
@@ -29,7 +28,6 @@ def lambda_handler(event, context):
     ddb = boto3.resource("dynamodb")
     table = ddb.Table(PRODUCTS_TABLE)
 
-    # 1) totalElements (Query con Select='COUNT' paginando por LastEvaluatedKey)
     total = 0
     count_args = {
         "KeyConditionExpression": Key("tenant_id").eq(tenant_id),
@@ -47,7 +45,6 @@ def lambda_handler(event, context):
 
     total_pages = math.ceil(total / size) if size > 0 else 0
 
-    # Si la página solicitada está fuera de rango, devolvemos vacío pero con totales correctos
     if total_pages and page >= total_pages:
         return _resp(200, {
             "contents": [],
@@ -57,13 +54,11 @@ def lambda_handler(event, context):
             "totalPages": total_pages
         })
 
-    # 2) Ir “saltando” hasta la página requerida usando ExclusiveStartKey
     qargs = {
         "KeyConditionExpression": Key("tenant_id").eq(tenant_id),
         "Limit": size
     }
 
-    # Avanza page veces para posicionar el cursor
     lek = None
     for _ in range(page):
         if lek:
@@ -71,7 +66,6 @@ def lambda_handler(event, context):
         rskip = table.query(**qargs)
         lek = rskip.get("LastEvaluatedKey")
         if not lek:
-            # Menos páginas de las que se pidieron: responder vacío coherente
             return _resp(200, {
                 "contents": [],
                 "page": page,
@@ -80,13 +74,11 @@ def lambda_handler(event, context):
                 "totalPages": total_pages
             })
 
-    # 3) Obtener contenidos de la página actual
     if lek:
         qargs["ExclusiveStartKey"] = lek
     rpage = table.query(**qargs)
     items = rpage.get("Items", [])
 
-    # 4) Respuesta con shape de PaginatedResponse<T>
     return _resp(200, {
         "contents": items,
         "page": page,
