@@ -4,7 +4,7 @@ import base64
 import boto3
 from decimal import Decimal
 from botocore.exceptions import ClientError
-from src.common.auth import get_token_from_headers, validate_token_and_get_claims
+from src.common.auth import get_token_from_headers, validate_token_and_get_claims, require_admin
 
 PRODUCTS_BUCKET = os.environ.get("PRODUCTS_BUCKET")
 PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
@@ -12,11 +12,47 @@ PRODUCTS_TABLE = os.environ["PRODUCTS_TABLE"]
 def _resp(code, body):
     return {"statusCode": code, "body": json.dumps(body, ensure_ascii=False)}
 
+
+def _extract_claims(auth: dict):
+
+    if not isinstance(auth, dict):
+        return False, {}, "Acceso no autorizado", 403
+
+    if auth.get("ok") is True and isinstance(auth.get("claims"), dict):
+        return True, auth["claims"], None, 200
+
+    status = auth.get("statusCode", 500)
+    body = auth.get("body")
+    if status != 200:
+        msg = None
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)
+            except json.JSONDecodeError:
+                msg = body
+        if isinstance(body, dict):
+            msg = body.get("error") or body.get("message")
+        return False, {}, (msg or "Acceso no autorizado"), status if status in (401, 403) else 403
+
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except json.JSONDecodeError:
+            body = {}
+    if not isinstance(body, dict):
+        body = {}
+    return True, body, None, 200
+
+
 def lambda_handler(event, context):
     token = get_token_from_headers(event)
     auth = validate_token_and_get_claims(token)
-    if auth.get("statusCode") == 403:
-        return _resp(403, {"error": "Acceso no autorizado"})
+    ok, claims, err, status = _extract_claims(auth)
+    if not ok:
+        return _resp(status, {"error": err})
+
+    if not require_admin(claims):
+        return _resp(403, {"error": "Requiere rol admin"})
 
     body = json.loads(event.get("body") or "{}", parse_float=Decimal)
     tenant_id = body.get("tenant_id")
